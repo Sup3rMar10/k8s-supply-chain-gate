@@ -1,0 +1,46 @@
+# Rendered with envsubst (see scripts/admission-test.sh): ${IMAGE_PATH} and ${REPO} come from the pipeline.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-signed-images
+spec:
+  # Enforce: an unverified image is rejected at admission. (Audit would only report it.)
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: require-keyless-signature-and-sbom
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      verifyImages:
+        - imageReferences:
+            # Only this repository's images are covered; other images are not touched.
+            - "ghcr.io/${IMAGE_PATH}*"
+          # Rewrite tag references to the verified digest so the tag cannot move afterwards.
+          mutateDigest: true
+          verifyDigest: true
+          required: true
+          imageRegistryCredentials:
+            secrets:
+              - ghcr-creds
+          attestors:
+            - entries:
+                - keyless:
+                    # Signed by THIS repository's ci.yml on main, via GitHub's OIDC issuer.
+                    subject: "https://github.com/${REPO}/.github/workflows/ci.yml@refs/heads/main"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
+          attestations:
+            # An SPDX SBOM must also be attached, signed by the same identity.
+            - type: https://spdx.dev/Document
+              attestors:
+                - entries:
+                    - keyless:
+                        subject: "https://github.com/${REPO}/.github/workflows/ci.yml@refs/heads/main"
+                        issuer: "https://token.actions.githubusercontent.com"
+                        rekor:
+                          url: https://rekor.sigstore.dev
