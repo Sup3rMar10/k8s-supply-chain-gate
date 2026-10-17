@@ -54,7 +54,18 @@ IMAGE_PATH="${IMAGE#ghcr.io/}"
 export IMAGE_PATH REPO
 # The single quotes are deliberate: envsubst must receive the literal variable names to substitute.
 # shellcheck disable=SC2016
-envsubst '${IMAGE_PATH} ${REPO}' <"$here/../policy/verify-images.yaml.tmpl" | kubectl apply -f -
+rendered="$(envsubst '${IMAGE_PATH} ${REPO}' <"$here/../policy/verify-images.yaml.tmpl")"
+# helm --wait returns when the pods are Ready, which can be a moment before the webhook serves TLS
+# ("connection refused" on the first apply), so retry.
+applied=false
+for _ in $(seq 1 15); do
+  if kubectl apply -f - <<<"$rendered"; then
+    applied=true
+    break
+  fi
+  sleep 5
+done
+if [ "$applied" = "true" ]; then ok "policy applied"; else bad "policy could not be applied"; fi
 for _ in $(seq 1 60); do
   ready="$(kubectl get cpol verify-signed-images -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
   [ "$ready" = "True" ] && break
