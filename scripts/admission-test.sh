@@ -52,6 +52,8 @@ done
 step "apply the policy"
 IMAGE_PATH="${IMAGE#ghcr.io/}"
 export IMAGE_PATH REPO
+# The single quotes are deliberate: envsubst must receive the literal variable names to substitute.
+# shellcheck disable=SC2016
 envsubst '${IMAGE_PATH} ${REPO}' <"$here/../policy/verify-images.yaml.tmpl" | kubectl apply -f -
 for _ in $(seq 1 60); do
   ready="$(kubectl get cpol verify-signed-images -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
