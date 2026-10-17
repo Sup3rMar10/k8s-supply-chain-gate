@@ -99,7 +99,8 @@ step "signed image referenced by TAG is admitted and pinned to its digest"
 pod_manifest by-tag "$TAG_REF" | kubectl apply -f - || true
 resolved="$(kubectl get pod by-tag -o jsonpath='{.spec.containers[0].image}' 2>/dev/null || true)"
 echo "  resolved image: $resolved"
-if [ "$resolved" = "$IMAGE@$SIGNED_DIGEST" ]; then ok "tag was rewritten to the verified digest"; else bad "tag was not pinned to the signed digest"; fi
+# Kyverno keeps the tag and appends the digest (image:tag@sha256:...), and the digest is what is pulled.
+if [ "${resolved##*@}" = "$SIGNED_DIGEST" ]; then ok "tag reference was pinned to the verified digest"; else bad "tag was not pinned to the signed digest"; fi
 
 step "an image outside the policy's scope is not affected"
 if pod_manifest outside nginxinc/nginx-unprivileged:1.27-alpine | kubectl apply -f -; then ok "admitted"; else bad "out-of-scope image was blocked"; fi
