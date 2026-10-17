@@ -106,6 +106,10 @@ jobs:
       - name: Install cosign
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v4.1.2 # there is no floating v4 tag
+        with:
+          # Pinned to cosign 2.x on purpose: cosign 3 writes signatures in the new Sigstore bundle format, which
+          # the pinned Kyverno (1.14) does not look for. It only finds the classic <digest>.sig tag.
+          cosign-release: v2.6.5
 
       - name: Generate an SBOM for the signed image
         if: github.event_name != 'pull_request'
